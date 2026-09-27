@@ -56,7 +56,64 @@ class GoodreadsDownloader:
                 # pretty print the data
                 print(json.dumps(data, indent=4))
 
+    def Print_Targeted_Data(self):
+        '''Print data specific to the child class'''
+        # Abstract function.
+        pass
 
-bookDownloader = GoodreadsDownloader('books', BASE_URL + TARGET_FILES['books']) 
-authorDownloader = GoodreadsDownloader('authors', BASE_URL + TARGET_FILES['authors']) 
-genreDownloader = GoodreadsDownloader('genres', BASE_URL + TARGET_FILES['genres'])
+    def Write_SQL(self):
+        '''Write the appropriate values to the SQL database.'''
+        # Abstract function.
+        pass
+
+class BookDownloader(GoodreadsDownloader):
+    def __init__(self, directory=''):
+        self.URL = TARGET_FILES['books']
+        self.content = 'books'
+        super().__init__(self.content, self.URL, directory)
+
+    def Print_Targeted_Data(self):
+        # Placeholder
+        print('Books!')
+
+    def Write_SQL(self):
+        # Placeholder
+        pass
+
+class AuthorDownloader(GoodreadsDownloader):
+    def __init__(self, directory=''):
+        self.URL = TARGET_FILES['authors']
+        self.content = 'authors'
+        super().__init__(self.content, self.URL, directory)
+
+    def Print_Targeted_Data(self):
+            # Placeholder
+            print('Authors!')
+
+    def Write_SQL(self):
+        # Placeholder
+        pass
+
+class GenreDownloader(GoodreadsDownloader):
+    def __init__(self, directory=''):
+        self.URL = TARGET_FILES['genres']
+        self.content = 'genres'
+        super().__init__(self.content, self.URL, directory)
+
+    def Print_Targeted_Data(self):
+            # Placeholder
+            print('Genres!')
+
+    def Write_SQL(self):
+        # Placeholder
+        pass
+
+
+downloaders = [
+    BookDownloader(),
+    AuthorDownloader(),
+    GenreDownloader()
+]
+for downloader in downloaders:
+    downloader.Print_Targeted_Data()
+
