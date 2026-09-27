@@ -2,6 +2,10 @@
 # Qwen2.5 Coder 1.5B was utilized for autocomplete functionality
 # 9/27/26
 
+# Data sets are courtsey of the University of California, San Diego
+# Restricted to educational use only.
+# https://cseweb.ucsd.edu/~jmcauley/datasets/goodreads.html
+
 import os
 import requests
 import gzip
@@ -14,7 +18,7 @@ TARGET_FILES = {
     'genres' : 'goodreads_book_genres_initial.json.gz',
 }
 
-class BookDownloader:
+class GoodreadsDownloader:
     def __init__(self, content, url, directory=''):
         self.content : str = content
         self.directory : str = directory
@@ -46,7 +50,7 @@ class BookDownloader:
 
     def Print_Lines(self, number_of_lines=100):
         """Print a specified number of lines from gz file in dictionary format. Default is 100 lines."""
-        # The files are too large to be open in normal text editors. So this is used to determine the appropriate SQL schema.
+        # The files are too large to be opened in normal text editors. So this is used to determine the appropriate SQL schema.
         with gzip.open(self.Get_File_Path(), 'rb') as file:
             for i in range(number_of_lines):
                 # Convert line to dictionary format
@@ -55,7 +59,7 @@ class BookDownloader:
                 print(json.dumps(data, indent=4))
 
 
-bookDownloader = BookDownloader('books', BASE_URL + TARGET_FILES['books']) 
+bookDownloader = GoodreadsDownloader('books', BASE_URL + TARGET_FILES['books']) 
 # 'title_without_series'
 # 'ratings_count'
 # 'average_rating'
@@ -65,11 +69,11 @@ bookDownloader = BookDownloader('books', BASE_URL + TARGET_FILES['books'])
 # 'authors' <- LIST!!!
 #       'author_id' <- reference
 # 'book_id'
-authorDownloader = BookDownloader('authors', BASE_URL + TARGET_FILES['authors']) 
+authorDownloader = GoodreadsDownloader('authors', BASE_URL + TARGET_FILES['authors']) 
 # 'author_id'
 # 'average_rating'
 # 'ratings_count'
-genreDownloader = BookDownloader('genres', BASE_URL + TARGET_FILES['genres']) # References book id, contains multiple generes
+genreDownloader = GoodreadsDownloader('genres', BASE_URL + TARGET_FILES['genres']) # References book id, contains multiple generes
 # 'book_id'
 # 'genres' <- this is a dictionary with the genre as the key and an int as the value. Maybe user votes?
 
