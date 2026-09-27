@@ -1,5 +1,5 @@
 # Designed by Ryan Pettinger
-# Qwen2.5 Coder 1.5B was utilized for autocomplete functionality
+# Qwen2.5 Coder 1.5b was utilized for autocomplete functionality
 # 9/27/26
 
 # Data sets are courtsey of the University of California, San Diego
@@ -23,7 +23,6 @@ class GoodreadsDownloader:
         self.content : str = content
         self.directory : str = directory
         self.URL : str = url
-        print(self.Get_File_Path())
         if not self.Check_Exists():
             self.Pull_From_Web()
 
@@ -41,12 +40,11 @@ class GoodreadsDownloader:
 
     def Pull_From_Web(self):
         """Download the gz file from the URL, save as {self.content}_json.gz to the class-specified directory"""
-        print('Downloading JSON file from the URL...')
+        print('Downloading gz file from the URL...')
         response = requests.get(self.URL)
         with open(self.Get_File_Path(), 'wb') as file:
             file.write(response.content)
-        print('JSON file downloaded successfully.')
-
+        print('gz file downloaded successfully.')
 
     def Print_Lines(self, number_of_lines=100):
         """Print a specified number of lines from gz file in dictionary format. Default is 100 lines."""
@@ -60,21 +58,5 @@ class GoodreadsDownloader:
 
 
 bookDownloader = GoodreadsDownloader('books', BASE_URL + TARGET_FILES['books']) 
-# 'title_without_series'
-# 'ratings_count'
-# 'average_rating'
-# 'publication_year'
-# 'num_pages'
-# 'publisher'
-# 'authors' <- LIST!!!
-#       'author_id' <- reference
-# 'book_id'
 authorDownloader = GoodreadsDownloader('authors', BASE_URL + TARGET_FILES['authors']) 
-# 'author_id'
-# 'average_rating'
-# 'ratings_count'
-genreDownloader = GoodreadsDownloader('genres', BASE_URL + TARGET_FILES['genres']) # References book id, contains multiple generes
-# 'book_id'
-# 'genres' <- this is a dictionary with the genre as the key and an int as the value. Maybe user votes?
-
-genreDownloader.Print_Lines()
+genreDownloader = GoodreadsDownloader('genres', BASE_URL + TARGET_FILES['genres'])
