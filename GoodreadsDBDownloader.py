@@ -23,32 +23,32 @@ class BookDownloader:
         if not self.Check_Exists():
             self.Pull_From_Web()
 
-    # Return the target file path
-    def Get_File_Path(self):
+    def Get_File_Path(self) -> str: 
+        """Return the target file path"""
         return self.directory + self.content + '_json.gz'
 
-    # Return if the target json file already exists in the class directory root.
-    def Check_Exists(self):
+    def Check_Exists(self) -> bool:
+        """Return if the target data file already exists in the class directory root."""
         if os.path.exists(self.Get_File_Path()):
-            print('JSON file already exists in the class directory root.')
+            print('File already exists in the class directory root.')
             return True
-        print('JSON file does not exist in the class directory root.')
+        print('File does not exist in the class directory root.')
         return False
 
-
-    # Download the JSON file from the URL, save as json.gz to the class directory
     def Pull_From_Web(self):
+        """Download the gz file from the URL, save as {self.content}_json.gz to the class-specified directory"""
         print('Downloading JSON file from the URL...')
         response = requests.get(self.URL)
-        # Files is several gb in size, download in chuncks
         with open(self.Get_File_Path(), 'wb') as file:
             file.write(response.content)
         print('JSON file downloaded successfully.')
 
-    # Print the first line of gz file in dictionary format
-    def Print_First_Line(self):
+
+    def Print_Lines(self, number_of_lines=100):
+        """Print a specified number of lines from gz file in dictionary format. Default is 100 lines."""
+        # The files are too large to be open in normal text editors. So this is used to determine the appropriate SQL schema.
         with gzip.open(self.Get_File_Path(), 'rb') as file:
-            for i in range(100):
+            for i in range(number_of_lines):
                 # Convert line to dictionary format
                 data = json.loads(file.readline())
                 # pretty print the data
@@ -70,7 +70,7 @@ authorDownloader = BookDownloader('authors', BASE_URL + TARGET_FILES['authors'])
 # 'average_rating'
 # 'ratings_count'
 genreDownloader = BookDownloader('genres', BASE_URL + TARGET_FILES['genres']) # References book id, contains multiple generes
-
-genreDownloader.Print_First_Line()
 # 'book_id'
 # 'genres' <- this is a dictionary with the genre as the key and an int as the value. Maybe user votes?
+
+genreDownloader.Print_Lines()
