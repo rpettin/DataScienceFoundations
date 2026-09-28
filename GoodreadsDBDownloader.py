@@ -10,6 +10,7 @@ import os
 import requests
 import gzip
 import json
+import sqlite3
 
 BASE_URL = 'https://mcauleylab.ucsd.edu/public_datasets/gdrive/goodreads/'
 TARGET_FILES = {
@@ -29,6 +30,10 @@ class GoodreadsDownloader:
     def Get_File_Path(self) -> str: 
         """Return the target file path"""
         return self.directory + self.content + '_json.gz'
+
+    def Get_DB_Path(self) -> str:
+        """Return the target database path"""
+        return self.directory + 'book_database' + '.db'
 
     def Check_Exists(self) -> bool:
         """Return if the target data file already exists in the class directory root."""
@@ -56,10 +61,27 @@ class GoodreadsDownloader:
                 # pretty print the data
                 print(json.dumps(data, indent=4))
 
-    def Print_Targeted_Data(self):
-        '''Print data specific to the child class'''
-        # Abstract function.
-        pass
+    def Print_Targeted_Data(self, target_data, number_of_lines=100):
+        """Extracts the target data from the first 100 lines (default) of the gz file. Used for debugging."""
+        with gzip.open(self.Get_File_Path(), 'rb') as file:
+            for i in range(number_of_lines):
+                print(f'Entry #{i+1}')
+                data = json.loads(file.readline())
+                for target_column in target_data:
+                    print(f'    {target_column} : {data.get(target_column, "")}')
+
+    # Opens a SQLite3 DB in the class specified directory
+    def OpenDB(self):
+        '''Opens a SQLite3 DB in the class specified directory'''
+        self.db = sqlite3.connect(self.Get_DB_Path())
+        print('DB is open')
+
+    def CloseDB(self):
+        '''Closes the SQLite3 DB in the classy'''
+        if self.db is not None:
+            self.db.close()
+            print('DB is closed')
+        print('DB was not open.')
 
     def Write_SQL(self):
         '''Write the appropriate values to the SQL database.'''
@@ -70,25 +92,46 @@ class BookDownloader(GoodreadsDownloader):
     def __init__(self, directory=''):
         self.URL = TARGET_FILES['books']
         self.content = 'books'
+        self.TARGET_DATA = [
+            'title_without_series',
+            'ratings_count',
+            'average_rating',
+            'publication_year',
+            'num_pages',
+            'publisher',
+            'author',
+            'book_id',
+        ]
         super().__init__(self.content, self.URL, directory)
 
-    def Print_Targeted_Data(self):
-        # Placeholder
-        print('Books!')
+    def Print_Targeted_Data(self, number_of_lines):
+        """Extracts the target data from the first 100 lines (default) of the gz file. Used for debugging."""
+        super().Print_Targeted_Data(self.TARGET_DATA, number_of_lines)        
+
 
     def Write_SQL(self):
-        # Placeholder
-        pass
+        super().OpenDB()
+        # Iterate through every line, writing to the sqlite3 database
+        with gzip.open(self.Get_File_Path(), 'rb') as file:
+            for line in file:
+                data = json.loads(line)
+                print(data)
+        super().CloseDB()
 
 class AuthorDownloader(GoodreadsDownloader):
     def __init__(self, directory=''):
         self.URL = TARGET_FILES['authors']
         self.content = 'authors'
+        self.TARGET_DATA = [
+            'author_id',
+            'average_rating',
+            'ratings_count'
+        ]
         super().__init__(self.content, self.URL, directory)
 
-    def Print_Targeted_Data(self):
-            # Placeholder
-            print('Authors!')
+    def Print_Targeted_Data(self, number_of_lines):
+        """Extracts the target data from the first 100 lines (default) of the gz file. Used for debugging."""
+        super().Print_Targeted_Data(self.TARGET_DATA, number_of_lines)       
 
     def Write_SQL(self):
         # Placeholder
@@ -98,11 +141,15 @@ class GenreDownloader(GoodreadsDownloader):
     def __init__(self, directory=''):
         self.URL = TARGET_FILES['genres']
         self.content = 'genres'
+        self.TARGET_DATA = [
+            'book_id',
+            'genres'
+        ]
         super().__init__(self.content, self.URL, directory)
 
-    def Print_Targeted_Data(self):
-            # Placeholder
-            print('Genres!')
+    def Print_Targeted_Data(self, number_of_lines):
+        """Extracts the target data from the first 100 lines (default) of the gz file. Used for debugging."""
+        super().Print_Targeted_Data(self.TARGET_DATA, number_of_lines)       
 
     def Write_SQL(self):
         # Placeholder
@@ -115,5 +162,9 @@ downloaders = [
     GenreDownloader()
 ]
 for downloader in downloaders:
-    downloader.Print_Targeted_Data()
+    downloader.Print_Targeted_Data(5)
+
+downloaders[0].Write_SQL()
+
+# DB Writes need to start with books. Authors and Genre will modify the entries.
 
