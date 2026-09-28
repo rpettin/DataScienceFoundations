@@ -108,7 +108,7 @@ class GoodreadsDownloader:
             
         with gzip.open(self.Get_File_Path(), 'rb') as file:
             counter : float = 0
-            EXECUTRE_COUNTER, current_execute_counter = 5000, 0
+            EXECUTE_COUNTER, current_execute_counter = 5000, 0
             
             for line in file:
                 counter += 1
@@ -118,10 +118,12 @@ class GoodreadsDownloader:
                 processLine(data)
             
                 current_execute_counter += 1
-                if current_execute_counter >= EXECUTRE_COUNTER:
+                if current_execute_counter >= EXECUTE_COUNTER:
                     current_execute_counter = 0
                     self.db.commit()
-            
+
+            # Final commit if last batch is less than 5k
+            self.db.commit()
             print('Done writing to DB')
 
         self.CloseDB()
@@ -149,7 +151,7 @@ class BookDownloader(GoodreadsDownloader):
         super().Print_Targeted_Data(self.TARGET_DATA, number_of_lines)        
 
     def ProcessLine(self, data : dict):
-            # Build the sql data
+            '''Uniquely processes the data and writes it to the SQL database. Passed as an argument into the super's write sql function'''
             entry_data = []
             for key in self.TARGET_DATA:
                 cell = data.get(key, "")
@@ -166,6 +168,7 @@ class BookDownloader(GoodreadsDownloader):
             self.cursor.execute(self.sql_statement, entry_data)
 
     def Write_SQL(self):
+        '''Write the appropriate values to the SQL database using the child's specific processing function'''
         super().Write_SQL(self.ProcessLine)
 
 
@@ -184,9 +187,12 @@ class AuthorDownloader(GoodreadsDownloader):
         """Extracts the target data from the first 100 lines (default) of the gz file. Used for debugging."""
         super().Print_Targeted_Data(self.TARGET_DATA, number_of_lines)       
 
-    def Write_SQL(self):
-        # Placeholder
+    def ProcessLine(self, data : dict):
+        '''Uniquely processes the data and writes it to the SQL database. Passed as an argument into the super's write sql function'''
         pass
+
+    def Write_SQL(self):
+        super().Write_SQL(self.ProcessLine)
 
 class GenreDownloader(GoodreadsDownloader):
     def __init__(self, directory=''):
@@ -202,9 +208,13 @@ class GenreDownloader(GoodreadsDownloader):
         """Extracts the target data from the first 100 lines (default) of the gz file. Used for debugging."""
         super().Print_Targeted_Data(self.TARGET_DATA, number_of_lines)       
 
-    def Write_SQL(self):
-        # Placeholder
+    def ProcessLine(self, data : dict):
+        '''Uniquely processes the data and writes it to the SQL database. Passed as an argument into the super's write sql function'''
         pass
+    
+    def Write_SQL(self):
+        '''Write the appropriate values to the SQL database using the child's specific processing function'''
+        super().Write_SQL(self.ProcessLine)
 
 
 downloaders = [
