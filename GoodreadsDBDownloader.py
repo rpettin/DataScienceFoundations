@@ -71,11 +71,27 @@ class GoodreadsDownloader:
                     print(f'    {target_column} : {data.get(target_column, "")}')
 
     # Opens a SQLite3 DB in the class specified directory
-    def OpenDB(self):
+    def OpenDB(self, flush_existing : bool = False):
         '''Opens a SQLite3 DB in the class specified directory'''
         self.db = sqlite3.connect(self.Get_DB_Path())
         self.cursor = self.db.cursor()
         print('DB is open')
+        if (flush_existing):
+            self.cursor.execute("DROP TABLE books;")
+            self.cursor.execute("""CREATE TABLE books (
+                database_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                goodreads_id INTEGER,
+                title_without_series TEXT,
+                ratings_count INTEGER,
+                average_rating FLOAT,
+                publication_year INTEGER,
+                number_of_pages INTEGER,
+                publisher TEXT,
+                author TEXT,
+                author_id INTEGER
+                genre TEXT
+            );""")
+            self.db.commit()
 
     def CloseDB(self):
         '''Closes the SQLite3 DB in the classy'''
@@ -85,10 +101,31 @@ class GoodreadsDownloader:
             print('DB is closed')
         print('DB was not open.')
 
-    def Write_SQL(self):
-        '''Write the appropriate values to the SQL database.'''
-        # Abstract function.
-        pass
+    def Write_SQL(self, processLine : function):
+        '''Write the appropriate values to the SQL database using the child's specific processing function'''
+        self.OpenDB()
+        # Iterate through every line, writing to the sqlite3 database
+            
+        with gzip.open(self.Get_File_Path(), 'rb') as file:
+            counter : float = 0
+            EXECUTRE_COUNTER, current_execute_counter = 5000, 0
+            
+            for line in file:
+                counter += 1
+                print(f'Processing line: {counter}', end='\r')
+                data = json.loads(line)
+                            
+                processLine(data)
+            
+                current_execute_counter += 1
+                if current_execute_counter >= EXECUTRE_COUNTER:
+                    current_execute_counter = 0
+                    self.db.commit()
+            
+            print('Done writing to DB')
+
+        self.CloseDB()
+
 
 class BookDownloader(GoodreadsDownloader):
     def __init__(self, directory=''):
@@ -129,27 +166,8 @@ class BookDownloader(GoodreadsDownloader):
             self.cursor.execute(self.sql_statement, entry_data)
 
     def Write_SQL(self):
-        super().OpenDB()
-        # Iterate through every line, writing to the sqlite3 database
+        super().Write_SQL(self.ProcessLine)
 
-        with gzip.open(self.Get_File_Path(), 'rb') as file:
-            counter : float = 0
-            EXECUTRE_COUNTER, current_execute_counter = 5000, 0
-
-            for line in file:
-                counter += 1
-                print(f'Processing line: {counter}\r')
-                data = json.loads(line)
-                
-                self.ProcessLine(data)
-
-                current_execute_counter += 1
-                if current_execute_counter >= EXECUTRE_COUNTER:
-                    current_execute_counter = 0
-                    self.db.commit()
-
-        print('Done writing to DB')
-        super().CloseDB()
 
 class AuthorDownloader(GoodreadsDownloader):
     def __init__(self, directory=''):
