@@ -11,6 +11,7 @@ import requests
 import gzip
 import json
 import sqlite3
+import time
 
 BASE_URL = 'https://mcauleylab.ucsd.edu/public_datasets/gdrive/goodreads/'
 TARGET_FILES = {
@@ -70,7 +71,6 @@ class GoodreadsDownloader:
                 for target_column in target_data:
                     print(f'    {target_column} : {data.get(target_column, "")}')
 
-    # Opens a SQLite3 DB in the class specified directory
     def OpenDB(self, flush_existing : bool = False):
         '''Opens a SQLite3 DB in the class specified directory'''
         self.db = sqlite3.connect(self.Get_DB_Path())
@@ -81,6 +81,7 @@ class GoodreadsDownloader:
             self.cursor.execute("""CREATE TABLE books (
                 database_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 goodreads_id INTEGER,
+                genre TEXT,
                 title_without_series TEXT,
                 ratings_count INTEGER,
                 average_rating FLOAT,
@@ -101,14 +102,14 @@ class GoodreadsDownloader:
             print('DB is closed')
         print('DB was not open.')
 
-    def Write_SQL(self, processLine : function):
+    def Write_SQL(self, processLine : function, commit_after : int = 5000):
         '''Write the appropriate values to the SQL database using the child's specific processing function'''
         self.OpenDB()
         # Iterate through every line, writing to the sqlite3 database
             
         with gzip.open(self.Get_File_Path(), 'rb') as file:
             counter : float = 0
-            EXECUTE_COUNTER, current_execute_counter = 5000, 0
+            EXECUTE_COUNTER, current_execute_counter = commit_after, 0
             
             for line in file:
                 counter += 1
@@ -151,15 +152,16 @@ class BookDownloader(GoodreadsDownloader):
         super().Print_Targeted_Data(self.TARGET_DATA, number_of_lines)        
 
     def ProcessLine(self, data : dict):
-            '''Uniquely processes the data and writes it to the SQL database. Passed as an argument into the super's write sql function'''
+            '''Uniquely processes the data and writes it to the SQL database. Passed as an argument into the parents's write sql function'''
             entry_data = []
             for key in self.TARGET_DATA:
                 cell = data.get(key, "")
 
-                # Don't record authors if multiple exist
                 if type(cell) == list:
-                    if (len(cell) > 1) or (len(cell) == 0):
-                        cell = ""
+                    if (len(cell) > 1):
+                        cell = "" # No recorded author
+                    elif (len(cell) == 0):
+                        cell = "-1" # This will represent multiple authors
                     else:
                         cell = cell[0].get('author_id','')
 
@@ -177,10 +179,11 @@ class AuthorDownloader(GoodreadsDownloader):
         self.URL = TARGET_FILES['authors']
         self.content = 'authors'
         self.TARGET_DATA = [
+            'name',
             'author_id',
-            'average_rating',
-            'ratings_count'
         ]
+        # Updates the SQL author name where the author id matches the existing id
+        self.sql_statement = 'UPDATE books SET author = ? WHERE author_id = ?'
         super().__init__(self.content, self.URL, directory)
 
     def Print_Targeted_Data(self, number_of_lines):
@@ -189,9 +192,23 @@ class AuthorDownloader(GoodreadsDownloader):
 
     def ProcessLine(self, data : dict):
         '''Uniquely processes the data and writes it to the SQL database. Passed as an argument into the super's write sql function'''
-        pass
+        entry_data = []
+        for key in self.TARGET_DATA:
+            cell = data.get(key, "")
+            entry_data.append(cell)
+        self.cursor.execute(self.sql_statement, entry_data)
 
     def Write_SQL(self):
+        # The author id column needs to be indexed or else this is extremely slow
+        super().OpenDB()
+        print('Indexing author_id...')
+        sql_statement = 'CREATE INDEX IF NOT EXISTS idx_books_author_id ON books(author_id);'
+        self.cursor.execute(sql_statement)
+        self.db.commit()
+        print('Indexing book_id...')
+        sql_statement = 'CREATE INDEX IF NOT EXISTS idx_books_book_id ON books(book_id);'
+        super().CloseDB()
+
         super().Write_SQL(self.ProcessLine)
 
 class GenreDownloader(GoodreadsDownloader):
@@ -213,6 +230,8 @@ class GenreDownloader(GoodreadsDownloader):
         pass
     
     def Write_SQL(self):
+
+
         '''Write the appropriate values to the SQL database using the child's specific processing function'''
         super().Write_SQL(self.ProcessLine)
 
@@ -222,10 +241,14 @@ downloaders = [
     AuthorDownloader(),
     GenreDownloader()
 ]
-for downloader in downloaders:
-    downloader.Print_Targeted_Data(5)
+#for downloader in downloaders:
+#    downloader.Print_Targeted_Data(5)
 
-downloaders[0].Write_SQL()
+
+start_time = time.time()
+#downloaders[0].Write_SQL() # Takes ~135 Seconds to process (Ultra 5 255F, 32gb DDR5)
+#downloaders[1].Write_SQL() # Takes ~59 Seconds to process
+print(f'Finished in {time.time() - start_time} Seconds')
 
 # DB Writes need to start with books. Authors and Genre will modify the entries.
 
