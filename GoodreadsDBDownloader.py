@@ -1,6 +1,6 @@
 # Designed by Ryan Pettinger
 # Qwen2.5 Coder 1.5b was utilized for autocomplete functionality
-# 9/27/26
+# 9/29/26
 
 # Data sets are courtsey of the University of California, San Diego
 # Restricted to educational use only.
@@ -103,9 +103,9 @@ class GoodreadsDownloader:
             print('DB is closed')
         print('DB was not open.')
 
-    def Write_SQL(self, processLine : function, commit_after : int = 5000):
+    def Write_SQL(self, processLine : function, commit_after : int = 5000, flush_existing : bool = False):
         '''Write the appropriate values to the SQL database using the child's specific processing function'''
-        self.OpenDB()
+        self.OpenDB(flush_existing)
         # Iterate through every line, writing to the sqlite3 database
             
         with gzip.open(self.Get_File_Path(), 'rb') as file:
@@ -172,7 +172,7 @@ class BookDownloader(GoodreadsDownloader):
 
     def Write_SQL(self):
         '''Write the appropriate values to the SQL database using the child's specific processing function'''
-        super().Write_SQL(self.ProcessLine)
+        super().Write_SQL(self.ProcessLine, flush_existing=True) # Drops the existing database before adding the new entries
 
 
 class AuthorDownloader(GoodreadsDownloader):
@@ -209,6 +209,14 @@ class AuthorDownloader(GoodreadsDownloader):
         super().CloseDB()
 
         super().Write_SQL(self.ProcessLine)
+
+        # The author_id index is no longer needed.
+        super().OpenDB()
+        print('Removing goodreads_id index...')
+        sql_statement = 'DROP INDEX IF EXISTS idx_books_author_id;'
+        self.cursor.execute(sql_statement)
+        self.db.commit()
+        super().CloseDB()
 
 class GenreDownloader(GoodreadsDownloader):
     def __init__(self, directory=''):
@@ -281,21 +289,34 @@ class GenreDownloader(GoodreadsDownloader):
         '''Write the appropriate values to the SQL database using the child's specific processing function'''
         super().Write_SQL(self.ProcessLine)
 
+        # The goodreads_id index is no longer needed.
+        super().OpenDB()
+        print('Removing goodreads_id index...')
+        sql_statement = 'DROP INDEX IF EXISTS idx_books_goodreads_id;'
+        self.cursor.execute(sql_statement)
+        self.db.commit()
+        super().CloseDB()
 
-downloaders = [
-    BookDownloader(),
-    AuthorDownloader(),
-    GenreDownloader()
-]
-for downloader in downloaders:
-    downloader.Print_Targeted_Data(5)
+class CompositeDownloader:
+    def __init__(self):
+        self.downloaders = {
+            'BookDownloader' : BookDownloader(),
+            'AuthorDownloader' : AuthorDownloader(),
+            'GenreDownloader' : GenreDownloader()
+        }
 
+    def Write_SQL(self) -> int:
+        '''Downloads the book database files and converts them into a SQL database. Returns the time it took to complete the process.'''
+        start_time = time.time()
+        self.downloaders['BookDownloader'].Write_SQL()
+        self.downloaders['AuthorDownloader'].Write_SQL()
+        self.downloaders['GenreDownloader'].Write_SQL()
+        return time.time - start_time
 
-start_time = time.time()
-#downloaders[0].Write_SQL() # Takes ~135 Seconds to process (Ultra 5 255F, 32gb DDR5)
-#downloaders[1].Write_SQL() # Takes ~59 Seconds to process
-downloaders[2].Write_SQL() # Takes ~82 Seconds to process
-print(f'Finished in {time.time() - start_time} Seconds')
+def main():
+    downloader = CompositeDownloader()
+    print(f"Time taken to download and convert the database files: {downloader.Write_SQL()} seconds")
 
-# DB Writes need to start with books. Authors and Genre will modify the entries.
+main()
+
 
