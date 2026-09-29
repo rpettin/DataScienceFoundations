@@ -82,6 +82,8 @@ class GoodreadsDownloader:
             self.cursor.execute("""CREATE TABLE books (
                 database_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 goodreads_id INTEGER,
+                country_code TEXT,
+                language_code TEXT,
                 genre TEXT,
                 fiction_or_non TEXT,
                 title_without_series TEXT,
@@ -145,8 +147,10 @@ class BookDownloader(GoodreadsDownloader):
             'publisher',
             'authors',
             'book_id',
+            'language_code',
+            'country_code'
         ]
-        self.sql_statement = 'INSERT INTO books (title_without_series, ratings_count, average_rating, publication_year, number_of_pages, publisher, author_id, goodreads_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        self.sql_statement = 'INSERT INTO books (title_without_series, ratings_count, average_rating, publication_year, number_of_pages, publisher, author_id, goodreads_id, language_code, country_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         super().__init__(self.content, self.URL, directory)
 
     def Print_Targeted_Data(self, number_of_lines):
@@ -213,7 +217,7 @@ class AuthorDownloader(GoodreadsDownloader):
 
         # The author_id index is no longer needed.
         super().OpenDB()
-        print('Removing goodreads_id index...')
+        print('Removing author_id index...')
         sql_statement = 'DROP INDEX IF EXISTS idx_books_author_id;'
         self.cursor.execute(sql_statement)
         self.db.commit()

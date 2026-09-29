@@ -1,19 +1,21 @@
-bookDownloader = GoodreadsDownloader('books', BASE_URL + TARGET_FILES['books']) 
+bookDownloader
 # 'title_without_series'
 # 'ratings_count'
 # 'average_rating'
 # 'publication_year'
 # 'num_pages'
 # 'publisher'
-# 'authors' <- LIST!!!
+# 'authors' <- List of authors
 #       'author_id' <- reference
 # 'book_id'
+# 'country_code'
+# 'language_code'
 
-authorDownloader = GoodreadsDownloader('authors', BASE_URL + TARGET_FILES['authors']) 
+authorDownloader
 # 'author_id'
-# 'average_rating'
-# 'ratings_count'
+# 'name'
 
-genreDownloader = GoodreadsDownloader('genres', BASE_URL + TARGET_FILES['genres'])
+genreDownloader
 # 'book_id'
-# 'genres' <- this is a dictionary with the genre as the key and an int as the value. Maybe user votes?
+# 'genres' <- This is a dictionary with the genre as the key and an int as the value. The int value is user votes.
+    # Also contains 'fiction' and 'non-fiction'
