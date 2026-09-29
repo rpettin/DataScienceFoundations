@@ -89,7 +89,8 @@ class GoodreadsDownloader:
                 number_of_pages INTEGER,
                 publisher TEXT,
                 author TEXT,
-                author_id INTEGER
+                author_id INTEGER,
+                fiction_or_non TEXT,
                 genre TEXT
             );""")
             self.db.commit()
@@ -205,8 +206,6 @@ class AuthorDownloader(GoodreadsDownloader):
         sql_statement = 'CREATE INDEX IF NOT EXISTS idx_books_author_id ON books(author_id);'
         self.cursor.execute(sql_statement)
         self.db.commit()
-        print('Indexing book_id...')
-        sql_statement = 'CREATE INDEX IF NOT EXISTS idx_books_book_id ON books(book_id);'
         super().CloseDB()
 
         super().Write_SQL(self.ProcessLine)
@@ -216,21 +215,68 @@ class GenreDownloader(GoodreadsDownloader):
         self.URL = TARGET_FILES['genres']
         self.content = 'genres'
         self.TARGET_DATA = [
-            'book_id',
-            'genres'
+            'genres',
+            'book_id'
         ]
+        # SQL statement updates the book genre where the id matches the "goodreads_id" column
+        self.sql_statement = 'UPDATE books SET fiction_or_non = ?, genre = ? WHERE goodreads_id = ?'
         super().__init__(self.content, self.URL, directory)
 
     def Print_Targeted_Data(self, number_of_lines):
         """Extracts the target data from the first 100 lines (default) of the gz file. Used for debugging."""
         super().Print_Targeted_Data(self.TARGET_DATA, number_of_lines)       
 
+    class sql_data:
+        def __init__(self):
+            self.id = "",
+            self.genre = ""
+            self.fiction_or_non = ""
+
+        def SetId(self, id):
+            self.id = id
+
+        def ProcessDict(self, cell : dict):
+            if len(cell.keys()) == 0 :
+                return # No data
+
+            # Get fiction or non-fiction
+            fiction_votes, non_fiction_votes = cell.get('fiction',0), cell.get('non-fiction',0)
+            self.fiction_or_non = "fiction" if fiction_votes > non_fiction_votes else "non-fiction"
+            # Removes fiction and non-fiction from the dictionary to process the genre
+            cell.pop('fiction', None)
+            cell.pop('non-fiction', None)
+
+
+            if len(cell.keys()) == 0 :
+                return # No genre data
+
+            self.genre = max(cell, key=cell.get) # Gets the key of the entry with the highest int value
+
+        def ConvertToArray(self) -> list:
+            return [self.fiction_or_non, self.genre, self.id]
+
+
     def ProcessLine(self, data : dict):
         '''Uniquely processes the data and writes it to the SQL database. Passed as an argument into the super's write sql function'''
-        pass
+        entry_data = self.sql_data()
+        for key in self.TARGET_DATA:
+            cell = data.get(key, "")
+            if type(cell) == dict:
+                entry_data.ProcessDict(cell)
+            else:
+                entry_data.SetId(cell)
+
+        self.cursor.execute(self.sql_statement, entry_data.ConvertToArray())
+
     
     def Write_SQL(self):
-
+        # The goodreads id column needs to be indexed or else this is extremely slow
+        super().OpenDB()
+        print('Indexing goodreads_id...')
+        sql_statement = 'CREATE INDEX IF NOT EXISTS idx_books_goodreads_id ON books(goodreads_id);'
+        self.cursor.execute(sql_statement)
+        self.db.commit()
+        super().CloseDB()
 
         '''Write the appropriate values to the SQL database using the child's specific processing function'''
         super().Write_SQL(self.ProcessLine)
@@ -241,13 +287,14 @@ downloaders = [
     AuthorDownloader(),
     GenreDownloader()
 ]
-#for downloader in downloaders:
-#    downloader.Print_Targeted_Data(5)
+for downloader in downloaders:
+    downloader.Print_Targeted_Data(5)
 
 
 start_time = time.time()
 #downloaders[0].Write_SQL() # Takes ~135 Seconds to process (Ultra 5 255F, 32gb DDR5)
 #downloaders[1].Write_SQL() # Takes ~59 Seconds to process
+downloaders[2].Write_SQL() # Takes ~82 Seconds to process
 print(f'Finished in {time.time() - start_time} Seconds')
 
 # DB Writes need to start with books. Authors and Genre will modify the entries.
