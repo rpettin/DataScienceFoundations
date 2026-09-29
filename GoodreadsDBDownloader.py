@@ -2,7 +2,7 @@
 # Qwen2.5 Coder 1.5b was utilized for autocomplete functionality
 # 9/29/26
 
-# Data sets are courtsey of the University of California, San Diego
+# Data sets are courtesy of the University of California, San Diego
 # Restricted to educational use only.
 # https://cseweb.ucsd.edu/~jmcauley/datasets/goodreads.html
 
@@ -48,7 +48,10 @@ class GoodreadsDownloader:
     def Pull_From_Web(self):
         """Download the gz file from the URL, save as {self.content}_json.gz to the class-specified directory"""
         print('Downloading gz file from the URL...')
-        response = requests.get(self.URL)
+        # Requests code referenced from https://github.com/MengtingWan/goodreads/blob/master/download.ipynb
+        response = requests.get(self.URL, timeout=60)
+        # Referenced from class material
+        response.raise_for_status()
         with open(self.Get_File_Path(), 'wb') as file:
             file.write(response.content)
         print('gz file downloaded successfully.')
@@ -56,6 +59,7 @@ class GoodreadsDownloader:
     def Print_Lines(self, number_of_lines=100):
         """Print a specified number of lines from gz file in dictionary format. Default is 100 lines."""
         # The files are too large to be opened in normal text editors. So this is used to determine the appropriate SQL schema.
+        # gzip code referenced from https://gist.github.com/0ut0fcontrol/baac52eb7119d6455883451b711d3478
         with gzip.open(self.Get_File_Path(), 'rb') as file:
             for i in range(number_of_lines):
                 # Convert line to dictionary format
@@ -65,6 +69,7 @@ class GoodreadsDownloader:
 
     def Print_Targeted_Data(self, target_data, number_of_lines=100):
         """Extracts the target data from the first 100 lines (default) of the gz file. Used for debugging."""
+        # gzip code referenced from https://gist.github.com/0ut0fcontrol/baac52eb7119d6455883451b711d3478
         with gzip.open(self.Get_File_Path(), 'rb') as file:
             for i in range(number_of_lines):
                 print(f'Entry #{i+1}')
@@ -72,7 +77,7 @@ class GoodreadsDownloader:
                 for target_column in target_data:
                     print(f'    {target_column} : {data.get(target_column, "")}')
 
-    def OpenDB(self, flush_existing : bool = False):
+    def Open_DB(self, flush_existing : bool = False):
         '''Opens a SQLite3 DB in the class specified directory'''
         self.db = sqlite3.connect(self.Get_DB_Path())
         self.cursor = self.db.cursor()
@@ -97,8 +102,8 @@ class GoodreadsDownloader:
             );""")
             self.db.commit()
 
-    def CloseDB(self):
-        '''Closes the SQLite3 DB in the classy'''
+    def Close_DB(self):
+        '''Closes the SQLite3 DB in the class'''
         if self.db is not None:
             self.cursor.close()
             self.db.close()
@@ -106,14 +111,14 @@ class GoodreadsDownloader:
         else:
             print('DB was not open.')
 
-    def Write_SQL(self, processLine : function, commit_after : int = 5000, flush_existing : bool = False):
+    def Write_SQL(self, processLine, commit_after : int = 5000, flush_existing : bool = False):
         '''Write the appropriate values to the SQL database using the child's specific processing function'''
-        self.OpenDB(flush_existing)
+        self.Open_DB(flush_existing)
         # Iterate through every line, writing to the sqlite3 database
             
         with gzip.open(self.Get_File_Path(), 'rb') as file:
-            counter : float = 0
-            EXECUTE_COUNTER, current_execute_counter = commit_after, 0
+            counter : int = 0
+            current_execute_counter = 0
             
             for line in file:
                 counter += 1
@@ -123,7 +128,7 @@ class GoodreadsDownloader:
                 processLine(data)
             
                 current_execute_counter += 1
-                if current_execute_counter >= EXECUTE_COUNTER:
+                if current_execute_counter >= commit_after:
                     current_execute_counter = 0
                     self.db.commit()
 
@@ -131,7 +136,7 @@ class GoodreadsDownloader:
             self.db.commit()
             print('\nDone writing to DB')
 
-        self.CloseDB()
+        self.Close_DB()
 
 
 class BookDownloader(GoodreadsDownloader):
@@ -157,16 +162,16 @@ class BookDownloader(GoodreadsDownloader):
         """Extracts the target data from the first 100 lines (default) of the gz file. Used for debugging."""
         super().Print_Targeted_Data(self.TARGET_DATA, number_of_lines)        
 
-    def ProcessLine(self, data : dict):
-            '''Uniquely processes the data and writes it to the SQL database. Passed as an argument into the parents's write sql function'''
+    def Process_Line(self, data : dict):
+            '''Uniquely processes the data and writes it to the SQL database. Passed as an argument into the parent's write sql function'''
             entry_data = []
             for key in self.TARGET_DATA:
                 cell = data.get(key, "")
 
                 if type(cell) == list:
-                    if (len(cell) > 1):
+                    if (len(cell) == 0):
                         cell = "" # No recorded author
-                    elif (len(cell) == 0):
+                    elif (len(cell) > 1):
                         cell = "-1" # This will represent multiple authors
                     else:
                         cell = cell[0].get('author_id','')
@@ -177,7 +182,7 @@ class BookDownloader(GoodreadsDownloader):
 
     def Write_SQL(self):
         '''Write the appropriate values to the SQL database using the child's specific processing function'''
-        super().Write_SQL(self.ProcessLine, flush_existing=True) # Drops the existing database before adding the new entries
+        super().Write_SQL(self.Process_Line, flush_existing=True) # Drops the existing database before adding the new entries
 
 
 class AuthorDownloader(GoodreadsDownloader):
@@ -196,7 +201,7 @@ class AuthorDownloader(GoodreadsDownloader):
         """Extracts the target data from the first 100 lines (default) of the gz file. Used for debugging."""
         super().Print_Targeted_Data(self.TARGET_DATA, number_of_lines)       
 
-    def ProcessLine(self, data : dict):
+    def Process_Line(self, data : dict):
         '''Uniquely processes the data and writes it to the SQL database. Passed as an argument into the super's write sql function'''
         entry_data = []
         for key in self.TARGET_DATA:
@@ -206,22 +211,22 @@ class AuthorDownloader(GoodreadsDownloader):
 
     def Write_SQL(self):
         # The author id column needs to be indexed or else this is extremely slow
-        super().OpenDB()
+        self.Open_DB()
         print('Indexing author_id...')
         sql_statement = 'CREATE INDEX IF NOT EXISTS idx_books_author_id ON books(author_id);'
         self.cursor.execute(sql_statement)
         self.db.commit()
-        super().CloseDB()
+        self.Close_DB()
 
-        super().Write_SQL(self.ProcessLine)
+        super().Write_SQL(self.Process_Line)
 
         # The author_id index is no longer needed.
-        super().OpenDB()
+        self.Open_DB()
         print('Removing author_id index...')
         sql_statement = 'DROP INDEX IF EXISTS idx_books_author_id;'
         self.cursor.execute(sql_statement)
         self.db.commit()
-        super().CloseDB()
+        self.Close_DB()
 
 class GenreDownloader(GoodreadsDownloader):
     def __init__(self, directory=''):
@@ -239,22 +244,29 @@ class GenreDownloader(GoodreadsDownloader):
         """Extracts the target data from the first 100 lines (default) of the gz file. Used for debugging."""
         super().Print_Targeted_Data(self.TARGET_DATA, number_of_lines)       
 
-    class sql_data:
+    class SQL_Data:
         def __init__(self):
-            self.id = "",
+            self.id = ""
             self.genre = ""
             self.fiction_or_non = ""
 
-        def SetId(self, id):
+        def Set_Id(self, id):
             self.id = id
 
-        def ProcessDict(self, cell : dict):
+        def Process_Dict(self, cell : dict):
             if len(cell.keys()) == 0 :
                 return # No data
 
             # Get fiction or non-fiction
             fiction_votes, non_fiction_votes = cell.get('fiction',0), cell.get('non-fiction',0)
-            self.fiction_or_non = "fiction" if fiction_votes > non_fiction_votes else "non-fiction"
+
+            if fiction_votes > non_fiction_votes:
+                self.fiction_or_non = "fiction"
+            elif non_fiction_votes > fiction_votes:
+                self.fiction_or_non = "non-fiction"
+            else:
+                self.fiction_or_non = ""
+
             # Removes fiction and non-fiction from the dictionary to process the genre
             cell.pop('fiction', None)
             cell.pop('non-fiction', None)
@@ -265,42 +277,44 @@ class GenreDownloader(GoodreadsDownloader):
 
             self.genre = max(cell, key=cell.get) # Gets the key of the entry with the highest int value
 
-        def ConvertToArray(self) -> list:
+        def Convert_To_Array(self) -> list:
             return [self.fiction_or_non, self.genre, self.id]
 
 
-    def ProcessLine(self, data : dict):
+    def Process_Line(self, data : dict):
         '''Uniquely processes the data and writes it to the SQL database. Passed as an argument into the super's write sql function'''
-        entry_data = self.sql_data()
+        # Using a dedicated class for this downloader's data allows perfect mapping to the sql statement, without worrying about
+        # the order of fiction/non-fiction and sub-genre in the singular data set dictionary
+        entry_data = self.SQL_Data()
         for key in self.TARGET_DATA:
             cell = data.get(key, "")
             if type(cell) == dict:
-                entry_data.ProcessDict(cell)
+                entry_data.Process_Dict(cell)
             else:
-                entry_data.SetId(cell)
+                entry_data.Set_Id(cell)
 
-        self.cursor.execute(self.sql_statement, entry_data.ConvertToArray())
+        self.cursor.execute(self.sql_statement, entry_data.Convert_To_Array())
 
     
     def Write_SQL(self):
         # The goodreads id column needs to be indexed or else this is extremely slow
-        super().OpenDB()
+        self.Open_DB()
         print('Indexing goodreads_id...')
         sql_statement = 'CREATE INDEX IF NOT EXISTS idx_books_goodreads_id ON books(goodreads_id);'
         self.cursor.execute(sql_statement)
         self.db.commit()
-        super().CloseDB()
+        self.Close_DB()
 
         '''Write the appropriate values to the SQL database using the child's specific processing function'''
-        super().Write_SQL(self.ProcessLine)
+        super().Write_SQL(self.Process_Line)
 
         # The goodreads_id index is no longer needed.
-        super().OpenDB()
+        self.Open_DB()
         print('Removing goodreads_id index...')
         sql_statement = 'DROP INDEX IF EXISTS idx_books_goodreads_id;'
         self.cursor.execute(sql_statement)
         self.db.commit()
-        super().CloseDB()
+        self.Close_DB()
 
 class CompositeDownloader:
     def __init__(self):
@@ -312,19 +326,21 @@ class CompositeDownloader:
         }
 
     def Write_SQL(self):
-        '''Downloads the book database files and converts them into a SQL database. Returns the time it took to complete the process.'''
-        print('Writting to the Database...')
+        '''Downloads the book database files and converts them into a SQL database.'''
+        print('Writing to the Database...')
         self.downloaders['BookDownloader'].Write_SQL()
         self.downloaders['AuthorDownloader'].Write_SQL()
         self.downloaders['GenreDownloader'].Write_SQL()
 
-def main():
+def Main():
     start_time = time.time()
     downloader = CompositeDownloader()
     downloader.Write_SQL()
     completion_time = time.time() - start_time
     print(f"Time taken to download and convert the database files: {completion_time} seconds")
 
-main()
+# References https://docs.python.org/3.13/library/__main__.html
+if __name__ == "__main__":
+    Main()
 
 
