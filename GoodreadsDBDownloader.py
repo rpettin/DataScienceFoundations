@@ -13,7 +13,6 @@ import json
 import sqlite3
 import time
 
-BASE_URL = 'https://mcauleylab.ucsd.edu/public_datasets/gdrive/goodreads/'
 TARGET_FILES = {
     'books' : 'goodreads_books.json.gz',
     'authors' : 'goodreads_book_authors.json.gz',
@@ -22,9 +21,11 @@ TARGET_FILES = {
 
 class GoodreadsDownloader:
     def __init__(self, content, url, directory=''):
+        self.BASE_URL = 'https://mcauleylab.ucsd.edu/public_datasets/gdrive/goodreads/'
+
         self.content : str = content
         self.directory : str = directory
-        self.URL : str = url
+        self.URL : str = self.BASE_URL + url
         if not self.Check_Exists():
             self.Pull_From_Web()
 
@@ -77,11 +78,12 @@ class GoodreadsDownloader:
         self.cursor = self.db.cursor()
         print('DB is open')
         if (flush_existing):
-            self.cursor.execute("DROP TABLE books;")
+            self.cursor.execute("DROP TABLE IF EXISTS books;")
             self.cursor.execute("""CREATE TABLE books (
                 database_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 goodreads_id INTEGER,
                 genre TEXT,
+                fiction_or_non TEXT,
                 title_without_series TEXT,
                 ratings_count INTEGER,
                 average_rating FLOAT,
@@ -89,9 +91,7 @@ class GoodreadsDownloader:
                 number_of_pages INTEGER,
                 publisher TEXT,
                 author TEXT,
-                author_id INTEGER,
-                fiction_or_non TEXT,
-                genre TEXT
+                author_id INTEGER
             );""")
             self.db.commit()
 
@@ -101,7 +101,8 @@ class GoodreadsDownloader:
             self.cursor.close()
             self.db.close()
             print('DB is closed')
-        print('DB was not open.')
+        else:
+            print('DB was not open.')
 
     def Write_SQL(self, processLine : function, commit_after : int = 5000, flush_existing : bool = False):
         '''Write the appropriate values to the SQL database using the child's specific processing function'''
@@ -126,7 +127,7 @@ class GoodreadsDownloader:
 
             # Final commit if last batch is less than 5k
             self.db.commit()
-            print('Done writing to DB')
+            print('\nDone writing to DB')
 
         self.CloseDB()
 
@@ -299,23 +300,26 @@ class GenreDownloader(GoodreadsDownloader):
 
 class CompositeDownloader:
     def __init__(self):
+        print('Downloading the database files...')
         self.downloaders = {
             'BookDownloader' : BookDownloader(),
             'AuthorDownloader' : AuthorDownloader(),
             'GenreDownloader' : GenreDownloader()
         }
 
-    def Write_SQL(self) -> int:
+    def Write_SQL(self):
         '''Downloads the book database files and converts them into a SQL database. Returns the time it took to complete the process.'''
-        start_time = time.time()
+        print('Writting to the Database...')
         self.downloaders['BookDownloader'].Write_SQL()
         self.downloaders['AuthorDownloader'].Write_SQL()
         self.downloaders['GenreDownloader'].Write_SQL()
-        return time.time - start_time
 
 def main():
+    start_time = time.time()
     downloader = CompositeDownloader()
-    print(f"Time taken to download and convert the database files: {downloader.Write_SQL()} seconds")
+    downloader.Write_SQL()
+    completion_time = time.time() - start_time
+    print(f"Time taken to download and convert the database files: {completion_time} seconds")
 
 main()
 
